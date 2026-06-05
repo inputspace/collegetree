@@ -1,0 +1,311 @@
+
+<h2 class="sr-only">College data tree explorer — upload a CSV or Excel file to visualize the hierarchy of college, branches, batches, trainers, and students</h2>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+#app{padding:1.5rem 0}
+#drop-zone{border:1.5px dashed var(--color-border-secondary);border-radius:var(--border-radius-lg);padding:2.5rem 2rem;text-align:center;cursor:pointer;transition:background 0.15s}
+#drop-zone:hover,#drop-zone.drag-over{background:var(--color-background-secondary)}
+#drop-zone i{font-size:32px;color:var(--color-text-secondary);margin-bottom:12px;display:block}
+#drop-zone p{color:var(--color-text-secondary);font-size:14px;margin-top:6px}
+#file-input{display:none}
+#stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin:1.25rem 0}
+.stat-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:0.75rem 1rem}
+.stat-card .lbl{font-size:12px;color:var(--color-text-secondary);margin-bottom:4px}
+.stat-card .val{font-size:20px;font-weight:500;color:var(--color-text-primary)}
+#tree-wrap{margin-top:1rem}
+.tree-node{user-select:none}
+.node-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:var(--border-radius-md);cursor:pointer;transition:background 0.1s}
+.node-row:hover{background:var(--color-background-secondary)}
+.node-row.selected{background:var(--color-background-info)}
+.node-toggle{width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;transition:transform 0.15s}
+.node-toggle.open{transform:rotate(90deg)}
+.node-toggle.leaf{visibility:hidden}
+.node-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.node-label{font-size:14px;color:var(--color-text-primary);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.node-label.bold{font-weight:500}
+.node-badge{font-size:11px;padding:2px 7px;border-radius:10px;flex-shrink:0;margin-left:auto}
+.node-children{margin-left:24px;border-left:1px solid var(--color-border-tertiary);padding-left:4px}
+.hidden{display:none}
+#detail-panel{margin-top:1.25rem;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.25rem}
+#detail-panel h3{font-size:15px;font-weight:500;margin-bottom:10px;color:var(--color-text-primary)}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
+.detail-item .dk{font-size:12px;color:var(--color-text-secondary)}
+.detail-item .dv{font-size:13px;color:var(--color-text-primary);word-break:break-all}
+.student-table{width:100%;font-size:12px;border-collapse:collapse;margin-top:8px}
+.student-table th{text-align:left;color:var(--color-text-secondary);font-weight:400;padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.student-table td{padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-primary)}
+.student-table tr:last-child td{border-bottom:none}
+#search-row{display:flex;gap:8px;margin-bottom:1rem;align-items:center}
+#search-row input{flex:1;font-size:13px}
+.tag-male{background:#E6F1FB;color:#185FA5;font-weight:500}
+.tag-female{background:#FBEAF0;color:#993556;font-weight:500}
+.tag-neutral{background:var(--color-background-secondary);color:var(--color-text-secondary);font-weight:500}
+.empty{color:var(--color-text-tertiary);font-size:13px;padding:1rem 0;text-align:center}
+</style>
+
+<div id="app">
+  <div id="drop-zone" onclick="document.getElementById('file-input').click()" id="dz">
+    <i class="ti ti-upload" aria-hidden="true"></i>
+    <strong style="font-size:15px;color:var(--color-text-primary)">Upload college data</strong>
+    <p>Drag & drop or click — CSV or Excel (.xlsx, .xls)</p>
+  </div>
+  <input type="file" id="file-input" accept=".csv,.xlsx,.xls">
+  <div id="main-content" class="hidden">
+    <div id="stats-row"></div>
+    <div id="search-row">
+      <i class="ti ti-search" aria-hidden="true" style="font-size:16px;color:var(--color-text-secondary)"></i>
+      <input type="text" id="search-input" placeholder="Search students, trainers, branches..." oninput="filterTree(this.value)">
+    </div>
+    <div id="tree-wrap"></div>
+    <div id="detail-panel" class="hidden"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+let treeData=null, expandedNodes=new Set(), selectedNode=null;
+
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');handleFile(e.dataTransfer.files[0])});
+document.getElementById('file-input').addEventListener('change',e=>handleFile(e.target.files[0]));
+
+function handleFile(file){
+  if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='csv'){
+    const r=new FileReader();
+    r.onload=e=>processRows(parseCSV(e.target.result));
+    r.readAsText(file);
+  } else {
+    const r=new FileReader();
+    r.onload=e=>{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      let rows=[];
+      wb.SheetNames.forEach(sn=>{
+        const ws=wb.Sheets[sn];
+        const data=XLSX.utils.sheet_to_json(ws,{defval:''});
+        if(data.length && data[0].firstName!==undefined){rows=[...rows,...data];}
+      });
+      if(rows.length) processRows(rows);
+      else{alert('No student data found. Expected columns: firstName, lastName, Branch, Batch, Trainer, etc.');}
+    };
+    r.readAsArrayBuffer(file);
+  }
+}
+
+function parseCSV(text){
+  const lines=text.trim().split('\n');
+  const headers=lines[0].split(',').map(h=>h.trim().replace(/"/g,''));
+  return lines.slice(1).map(l=>{
+    const vals=l.split(',').map(v=>v.trim().replace(/"/g,''));
+    return Object.fromEntries(headers.map((h,i)=>[h,vals[i]||'']));
+  });
+}
+
+function normalize(row){
+  const find=(...keys)=>{for(const k of keys){const v=row[k]||row[k.toLowerCase()]||row[k.replace(' ','')];if(v)return String(v).trim();}return '';};
+  return {
+    firstName: find('firstName','first_name','First Name','FIRSTNAME'),
+    lastName: find('lastName','last_name','Last Name','LASTNAME'),
+    email: find('email','Email','EMAIL'),
+    rollNo: find('rollNo','roll_no','Roll No','RollNo','ROLLNO'),
+    phone: find('phone','Phone','PHONE'),
+    gender: find('gender','Gender','GENDER'),
+    branch: find('Branch ','Branch','branch','BRANCH'),
+    batch: find('Batch','batch','BATCH'),
+    graduation: find('Graduation','graduation','GRADUATION'),
+    trainer: find('Trainer ','Trainer','trainer','TRAINER'),
+  };
+}
+
+function processRows(rawRows){
+  const rows=rawRows.map(normalize).filter(r=>r.firstName||r.rollNo);
+  const collegeMap={};
+  rows.forEach(r=>{
+    const col=r.branch||'Unknown College';
+    const br=r.batch||'Unknown Batch';
+    const tr=r.trainer||'Unknown Trainer';
+    if(!collegeMap[col])collegeMap[col]={};
+    if(!collegeMap[col][br])collegeMap[col][br]={trainer:tr,students:[]};
+    collegeMap[col][br].students.push(r);
+  });
+  treeData={colleges:collegeMap,totalStudents:rows.length,rows};
+  renderAll();
+}
+
+function renderAll(){
+  if(!treeData)return;
+  document.getElementById('main-content').classList.remove('hidden');
+  document.getElementById('drop-zone').style.display='none';
+  renderStats();
+  renderTree(treeData.rows);
+}
+
+const COLORS={college:'#185FA5',branch:'#0F6E56',batch:'#993C1D',trainer:'#3C3489',student:'#888780'};
+const BG={college:'#E6F1FB',branch:'#E1F5EE',batch:'#FAECE7',trainer:'#EEEDFE',student:'#F1EFE8'};
+
+function renderStats(){
+  const {colleges,totalStudents}=treeData;
+  const colCount=Object.keys(colleges).length;
+  const batchCount=Object.values(colleges).reduce((s,b)=>s+Object.keys(b).length,0);
+  const trainerSet=new Set();
+  Object.values(colleges).forEach(b=>Object.values(b).forEach(d=>trainerSet.add(d.trainer)));
+  document.getElementById('stats-row').innerHTML=`
+    <div class="stat-card"><div class="lbl">Branches</div><div class="val">${colCount}</div></div>
+    <div class="stat-card"><div class="lbl">Batches</div><div class="val">${batchCount}</div></div>
+    <div class="stat-card"><div class="lbl">Trainers</div><div class="val">${trainerSet.size}</div></div>
+    <div class="stat-card"><div class="lbl">Students</div><div class="val">${totalStudents}</div></div>
+  `;
+}
+
+function renderTree(filterRows){
+  const wrap=document.getElementById('tree-wrap');
+  if(!treeData){wrap.innerHTML='';return;}
+  const {colleges}=treeData;
+  const filterSet=filterRows?new Set(filterRows.map(r=>r.rollNo)):null;
+
+  let html='<div class="tree-node">';
+  const rootId='root';
+  const rootOpen=expandedNodes.has(rootId);
+  html+=nodeRow(rootId,'college','St. Joseph Institute','root',Object.keys(colleges).length+' branches','bold',rootOpen);
+  if(rootOpen){
+    html+='<div class="node-children">';
+    Object.entries(colleges).forEach(([col,batches])=>{
+      const colId='col:'+col;
+      const colOpen=expandedNodes.has(colId);
+      const batchCount=Object.keys(batches).length;
+      const visStudents=Object.values(batches).flatMap(b=>b.students).filter(s=>!filterSet||filterSet.has(s.rollNo));
+      if(filterSet&&visStudents.length===0)return;
+      html+=nodeRow(colId,'branch',col,'branch',batchCount+' batches','bold',colOpen);
+      if(colOpen){
+        html+='<div class="node-children">';
+        Object.entries(batches).forEach(([bat,info])=>{
+          const batId='bat:'+col+':'+bat;
+          const batOpen=expandedNodes.has(batId);
+          const visS=info.students.filter(s=>!filterSet||filterSet.has(s.rollNo));
+          if(filterSet&&visS.length===0)return;
+          html+=nodeRow(batId,'batch',bat,'batch',visS.length+' students','',batOpen);
+          if(batOpen){
+            html+='<div class="node-children">';
+            const trId='tr:'+col+':'+bat;
+            const trOpen=expandedNodes.has(trId);
+            html+=nodeRow(trId,'trainer',info.trainer,'trainer',visS.length+' students','',trOpen);
+            if(trOpen){
+              html+='<div class="node-children">';
+              visS.forEach(s=>{
+                const sId='stu:'+s.rollNo;
+                const name=(s.firstName+' '+s.lastName).trim()||s.rollNo;
+                html+=nodeRow(sId,'student',name,'student',s.rollNo,'',false,true);
+              });
+              html+='</div>';
+            }
+            html+='</div>';
+          }
+        });
+        html+='</div>';
+      }
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+  wrap.innerHTML=html;
+}
+
+function nodeRow(id,type,label,typeTag,badge,labelClass,isOpen,isLeaf){
+  const dot=`<span class="node-dot" style="background:${COLORS[type]}"></span>`;
+  const tog=isLeaf?`<span class="node-toggle leaf">▶</span>`:`<span class="node-toggle${isOpen?' open':''}">▶</span>`;
+  const bdg=badge?`<span class="node-badge" style="background:${BG[type]};color:${COLORS[type]}">${badge}</span>`:'';
+  const sel=selectedNode===id?' selected':'';
+  return `<div class="node-row${sel}" onclick="nodeClick('${id}','${type}','${label.replace(/'/g,"\\'")}','${typeTag}')">
+    ${tog}${dot}
+    <span class="node-label${labelClass?' '+labelClass:''}" title="${label.replace(/"/g,'&quot;')}">${esc(label)}</span>
+    ${bdg}
+  </div>`;
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function nodeClick(id,type,label,typeTag){
+  if(type==='student'){selectedNode=id;showStudentDetail(id,label);}
+  else{
+    if(expandedNodes.has(id))expandedNodes.delete(id);
+    else expandedNodes.add(id);
+    selectedNode=id;
+    renderTree(null);
+    if(type!=='student')showGroupDetail(id,type,label);
+  }
+}
+
+function showStudentDetail(id,label){
+  const rollNo=id.replace('stu:','');
+  const s=treeData.rows.find(r=>r.rollNo===rollNo);
+  if(!s)return;
+  const name=(s.firstName+' '+s.lastName).trim();
+  const gTag=s.gender.toLowerCase()==='female'?'tag-female':s.gender.toLowerCase()==='male'?'tag-male':'tag-neutral';
+  const panel=document.getElementById('detail-panel');
+  panel.classList.remove('hidden');
+  panel.innerHTML=`
+    <h3><i class="ti ti-user" aria-hidden="true" style="font-size:15px;margin-right:6px;vertical-align:-2px"></i>${esc(name)}</h3>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="dk">Roll no</div><div class="dv">${esc(s.rollNo)}</div></div>
+      <div class="detail-item"><div class="dk">Gender</div><div class="dv"><span class="node-badge ${gTag}">${esc(s.gender)}</span></div></div>
+      <div class="detail-item"><div class="dk">Email</div><div class="dv">${esc(s.email||'—')}</div></div>
+      <div class="detail-item"><div class="dk">Phone</div><div class="dv">${esc(s.phone||'—')}</div></div>
+      <div class="detail-item"><div class="dk">Branch</div><div class="dv">${esc(s.branch)}</div></div>
+      <div class="detail-item"><div class="dk">Batch</div><div class="dv">${esc(s.batch)}</div></div>
+      <div class="detail-item"><div class="dk">Trainer</div><div class="dv">${esc(s.trainer)}</div></div>
+      <div class="detail-item"><div class="dk">Graduation</div><div class="dv">${esc(s.graduation)}</div></div>
+    </div>
+  `;
+}
+
+function showGroupDetail(id,type,label){
+  let students=[];
+  const {colleges}=treeData;
+  if(type==='branch'){
+    Object.values(colleges).forEach(bs=>Object.values(bs).forEach(b=>students=[...students,...b.students]));
+  } else if(id.startsWith('bat:')){
+    const [,col,bat]=id.split(':');
+    students=colleges[col]?.[bat]?.students||[];
+  } else if(id.startsWith('tr:')){
+    const parts=id.split(':');const col=parts[1],bat=parts[2];
+    students=colleges[col]?.[bat]?.students||[];
+  } else if(id==='root'){
+    students=treeData.rows;
+  }
+  if(!students.length)return;
+  const panel=document.getElementById('detail-panel');
+  panel.classList.remove('hidden');
+  const rows=students.slice(0,50).map(s=>`<tr>
+    <td>${esc((s.firstName+' '+s.lastName).trim())}</td>
+    <td>${esc(s.rollNo)}</td>
+    <td>${esc(s.batch)}</td>
+    <td>${esc(s.trainer)}</td>
+  </tr>`).join('');
+  panel.innerHTML=`
+    <h3>${esc(label)} <span style="font-size:12px;font-weight:400;color:var(--color-text-secondary)">${students.length} students${students.length>50?' (showing 50)':''}</span></h3>
+    <table class="student-table">
+      <thead><tr><th>Name</th><th>Roll no</th><th>Batch</th><th>Trainer</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function filterTree(q){
+  if(!treeData)return;
+  if(!q.trim()){renderTree(null);return;}
+  const lq=q.toLowerCase();
+  const matched=treeData.rows.filter(r=>{
+    const name=(r.firstName+' '+r.lastName).toLowerCase();
+    return name.includes(lq)||r.rollNo.toLowerCase().includes(lq)||r.trainer.toLowerCase().includes(lq)||r.batch.toLowerCase().includes(lq)||r.branch.toLowerCase().includes(lq)||r.email.toLowerCase().includes(lq);
+  });
+  expandedNodes=new Set(['root',...matched.map(r=>'col:'+r.branch),...matched.map(r=>'bat:'+r.branch+':'+r.batch),...matched.map(r=>'tr:'+r.branch+':'+r.batch)]);
+  renderTree(matched);
+}
+
+expandedNodes.add('root');
+</script>
