@@ -1,311 +1,821 @@
-
-<h2 class="sr-only">College data tree explorer — upload a CSV or Excel file to visualize the hierarchy of college, branches, batches, trainers, and students</h2>
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>College Tree Explorer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--font-sans)}
-#app{padding:1.5rem 0}
-#drop-zone{border:1.5px dashed var(--color-border-secondary);border-radius:var(--border-radius-lg);padding:2.5rem 2rem;text-align:center;cursor:pointer;transition:background 0.15s}
-#drop-zone:hover,#drop-zone.drag-over{background:var(--color-background-secondary)}
-#drop-zone i{font-size:32px;color:var(--color-text-secondary);margin-bottom:12px;display:block}
-#drop-zone p{color:var(--color-text-secondary);font-size:14px;margin-top:6px}
-#file-input{display:none}
-#stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin:1.25rem 0}
-.stat-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:0.75rem 1rem}
-.stat-card .lbl{font-size:12px;color:var(--color-text-secondary);margin-bottom:4px}
-.stat-card .val{font-size:20px;font-weight:500;color:var(--color-text-primary)}
-#tree-wrap{margin-top:1rem}
-.tree-node{user-select:none}
-.node-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:var(--border-radius-md);cursor:pointer;transition:background 0.1s}
-.node-row:hover{background:var(--color-background-secondary)}
-.node-row.selected{background:var(--color-background-info)}
-.node-toggle{width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--color-text-tertiary);flex-shrink:0;transition:transform 0.15s}
-.node-toggle.open{transform:rotate(90deg)}
-.node-toggle.leaf{visibility:hidden}
-.node-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.node-label{font-size:14px;color:var(--color-text-primary);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
-.node-label.bold{font-weight:500}
-.node-badge{font-size:11px;padding:2px 7px;border-radius:10px;flex-shrink:0;margin-left:auto}
-.node-children{margin-left:24px;border-left:1px solid var(--color-border-tertiary);padding-left:4px}
-.hidden{display:none}
-#detail-panel{margin-top:1.25rem;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem 1.25rem}
-#detail-panel h3{font-size:15px;font-weight:500;margin-bottom:10px;color:var(--color-text-primary)}
-.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
-.detail-item .dk{font-size:12px;color:var(--color-text-secondary)}
-.detail-item .dv{font-size:13px;color:var(--color-text-primary);word-break:break-all}
-.student-table{width:100%;font-size:12px;border-collapse:collapse;margin-top:8px}
-.student-table th{text-align:left;color:var(--color-text-secondary);font-weight:400;padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary)}
-.student-table td{padding:4px 6px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-primary)}
-.student-table tr:last-child td{border-bottom:none}
-#search-row{display:flex;gap:8px;margin-bottom:1rem;align-items:center}
-#search-row input{flex:1;font-size:13px}
-.tag-male{background:#E6F1FB;color:#185FA5;font-weight:500}
-.tag-female{background:#FBEAF0;color:#993556;font-weight:500}
-.tag-neutral{background:var(--color-background-secondary);color:var(--color-text-secondary);font-weight:500}
-.empty{color:var(--color-text-tertiary);font-size:13px;padding:1rem 0;text-align:center}
-</style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-<div id="app">
-  <div id="drop-zone" onclick="document.getElementById('file-input').click()" id="dz">
-    <i class="ti ti-upload" aria-hidden="true"></i>
-    <strong style="font-size:15px;color:var(--color-text-primary)">Upload college data</strong>
-    <p>Drag & drop or click — CSV or Excel (.xlsx, .xls)</p>
-  </div>
-  <input type="file" id="file-input" accept=".csv,.xlsx,.xls">
-  <div id="main-content" class="hidden">
-    <div id="stats-row"></div>
-    <div id="search-row">
-      <i class="ti ti-search" aria-hidden="true" style="font-size:16px;color:var(--color-text-secondary)"></i>
-      <input type="text" id="search-input" placeholder="Search students, trainers, branches..." oninput="filterTree(this.value)">
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --surface2: #f0ede8;
+    --border: #e2ddd7;
+    --border2: #ccc8c1;
+    --text: #1a1814;
+    --text2: #6b6560;
+    --text3: #9e9890;
+    --accent: #2563eb;
+    --accent-bg: #eff4ff;
+    --green: #16a34a;
+    --green-bg: #f0fdf4;
+    --amber: #b45309;
+    --amber-bg: #fffbeb;
+    --purple: #7c3aed;
+    --purple-bg: #f5f3ff;
+    --coral: #dc2626;
+    --coral-bg: #fef2f2;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  }
+
+  html, body { height: 100%; background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); font-size: 14px; line-height: 1.5; }
+
+  /* ── Layout ── */
+  #shell { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── Left sidebar ── */
+  #sidebar {
+    width: 340px; min-width: 280px; max-width: 420px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  #sidebar-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  #sidebar-header h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px; font-weight: 700;
+    color: var(--text); letter-spacing: -0.3px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  #sidebar-header h1 svg { flex-shrink: 0; }
+
+  #sidebar-header p {
+    font-size: 12px; color: var(--text3); margin-top: 2px; margin-left: 28px;
+  }
+
+  #search-wrap {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    display: none;
+  }
+
+  #search-wrap.visible { display: block; }
+
+  #search-input {
+    width: 100%; padding: 8px 12px 8px 34px;
+    border: 1px solid var(--border2);
+    border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif;
+    background: var(--bg); color: var(--text); outline: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239e9890' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: 10px center;
+  }
+
+  #search-input:focus { border-color: var(--accent); background-color: var(--surface); }
+
+  #tree-container {
+    flex: 1; overflow-y: auto; padding: 8px 0;
+  }
+
+  #tree-container::-webkit-scrollbar { width: 4px; }
+  #tree-container::-webkit-scrollbar-track { background: transparent; }
+  #tree-container::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  /* ── Upload zone ── */
+  #upload-zone {
+    margin: 20px 16px;
+    border: 2px dashed var(--border2);
+    border-radius: var(--radius-lg);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: var(--bg);
+  }
+
+  #upload-zone:hover, #upload-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+  }
+
+  #upload-zone .up-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--accent-bg);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px;
+    transition: all 0.15s;
+  }
+
+  #upload-zone:hover .up-icon { background: #dbeafe; }
+
+  #upload-zone strong {
+    display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px;
+  }
+
+  #upload-zone span {
+    font-size: 12px; color: var(--text3);
+  }
+
+  #file-input { display: none; }
+
+  /* ── Stats strip ── */
+  #stats-strip {
+    display: none; padding: 12px 16px; gap: 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  #stats-strip.visible { display: flex; }
+
+  .stat-pill {
+    flex: 1; min-width: 60px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; text-align: center;
+  }
+
+  .stat-pill .sp-val {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px; font-weight: 700; color: var(--text);
+    line-height: 1.1;
+  }
+
+  .stat-pill .sp-lbl {
+    font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;
+  }
+
+  /* ── Tree nodes ── */
+  .tree-node { user-select: none; }
+
+  .node-row {
+    display: flex; align-items: center; gap: 0;
+    padding: 5px 16px 5px 8px;
+    cursor: pointer; transition: background 0.1s;
+    border-radius: 0;
+    position: relative;
+  }
+
+  .node-row:hover { background: var(--surface2); }
+  .node-row.active { background: var(--accent-bg); }
+  .node-row.active::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--accent); border-radius: 0 2px 2px 0;
+  }
+
+  .node-indent { display: flex; align-items: center; flex-shrink: 0; }
+
+  .indent-line {
+    width: 20px; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .toggle-btn {
+    width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; flex-shrink: 0; margin-right: 6px;
+    transition: transform 0.15s;
+  }
+
+  .toggle-btn svg { transition: transform 0.15s; }
+  .toggle-btn.open svg { transform: rotate(90deg); }
+  .toggle-btn.leaf { visibility: hidden; }
+
+  .node-icon {
+    width: 22px; height: 22px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-right: 8px;
+  }
+
+  .node-label {
+    flex: 1; font-size: 13px; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .node-label.fw { font-weight: 600; font-size: 14px; }
+  .node-label.med { font-weight: 500; }
+
+  .node-count {
+    font-size: 11px; color: var(--text3); background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 1px 7px; flex-shrink: 0; margin-left: 4px;
+  }
+
+  .node-children { }
+
+  /* ── Right panel ── */
+  #detail {
+    flex: 1; overflow-y: auto; background: var(--bg); padding: 24px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+
+  #detail::-webkit-scrollbar { width: 4px; }
+  #detail::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  /* ── Welcome ── */
+  #welcome {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    padding: 40px;
+  }
+
+  #welcome .wlc-icon {
+    width: 64px; height: 64px; background: var(--accent-bg);
+    border-radius: 18px; display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+  }
+
+  #welcome h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 8px;
+  }
+
+  #welcome p { font-size: 14px; color: var(--text2); max-width: 320px; margin: 0 auto; }
+
+  /* ── Detail cards ── */
+  .d-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 20px;
+    box-shadow: var(--shadow);
+  }
+
+  .d-card-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 15px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+  }
+
+  .d-card-title .icon-box {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  /* Student profile */
+  .student-header {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 20px;
+  }
+
+  .avatar {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px; font-weight: 700; flex-shrink: 0;
+  }
+
+  .avatar.male { background: var(--accent-bg); color: var(--accent); }
+  .avatar.female { background: #fdf2f8; color: #9d174d; }
+  .avatar.other { background: var(--purple-bg); color: var(--purple); }
+
+  .student-name { font-weight: 600; font-size: 16px; color: var(--text); line-height: 1.2; }
+  .student-roll { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+  .info-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  }
+
+  .info-item .ik { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+  .info-item .iv { font-size: 13px; color: var(--text); font-weight: 500; word-break: break-all; }
+
+  .badge {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 20px; letter-spacing: 0.2px;
+  }
+
+  .badge-male { background: var(--accent-bg); color: var(--accent); }
+  .badge-female { background: #fdf2f8; color: #9d174d; }
+  .badge-green { background: var(--green-bg); color: var(--green); }
+  .badge-purple { background: var(--purple-bg); color: var(--purple); }
+
+  /* Group summary */
+  .group-meta {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: 10px; margin-bottom: 16px;
+  }
+
+  .gm-item {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px;
+  }
+
+  .gm-val {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px; font-weight: 700; color: var(--text); line-height: 1;
+  }
+
+  .gm-lbl { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+  /* Student table */
+  .student-table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+
+  thead th {
+    text-align: left; padding: 8px 10px;
+    font-size: 11px; font-weight: 600; color: var(--text3);
+    text-transform: uppercase; letter-spacing: 0.4px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  tbody tr { transition: background 0.1s; }
+  tbody tr:hover { background: var(--surface2); }
+
+  tbody td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    color: var(--text); vertical-align: middle;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  .clickable-row { cursor: pointer; }
+
+  .gender-dot {
+    width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 4px;
+    vertical-align: middle;
+  }
+
+  .more-note {
+    text-align: center; padding: 10px;
+    font-size: 12px; color: var(--text3);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.18s ease both; }
+</style>
+</head>
+<body>
+
+<div id="shell">
+  <!-- LEFT SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <h1>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>
+        </svg>
+        College Tree
+      </h1>
+      <p>Upload a file to explore the hierarchy</p>
     </div>
-    <div id="tree-wrap"></div>
-    <div id="detail-panel" class="hidden"></div>
+
+    <div id="stats-strip"></div>
+    <div id="search-wrap">
+      <input type="text" id="search-input" placeholder="Search students, batches, trainers…" oninput="filterTree(this.value)">
+    </div>
+
+    <div id="tree-container">
+      <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <div class="up-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <strong>Upload college data</strong>
+        <span>CSV or Excel (.xlsx, .xls)</span>
+      </div>
+      <input type="file" id="file-input" accept=".csv,.xlsx,.xls">
+      <div id="tree-root"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT DETAIL PANEL -->
+  <div id="detail">
+    <div id="welcome">
+      <div class="wlc-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/>
+        </svg>
+      </div>
+      <h2>Select a node</h2>
+      <p>Upload your college data file, then click any node in the tree to see details here.</p>
+    </div>
+    <div id="detail-content" style="display:none"></div>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-let treeData=null, expandedNodes=new Set(), selectedNode=null;
+let treeData = null, expandedNodes = new Set(), selectedId = null;
 
-const dz=document.getElementById('drop-zone');
-dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over')});
-dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
-dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');handleFile(e.dataTransfer.files[0])});
-document.getElementById('file-input').addEventListener('change',e=>handleFile(e.target.files[0]));
+/* ── Drag & drop ── */
+const dz = document.getElementById('upload-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+document.getElementById('file-input').addEventListener('change', e => handleFile(e.target.files[0]));
 
-function handleFile(file){
-  if(!file)return;
-  const ext=file.name.split('.').pop().toLowerCase();
-  if(ext==='csv'){
-    const r=new FileReader();
-    r.onload=e=>processRows(parseCSV(e.target.result));
+/* ── File handling ── */
+function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'csv') {
+    const r = new FileReader();
+    r.onload = e => processRows(parseCSV(e.target.result));
     r.readAsText(file);
   } else {
-    const r=new FileReader();
-    r.onload=e=>{
-      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-      let rows=[];
-      wb.SheetNames.forEach(sn=>{
-        const ws=wb.Sheets[sn];
-        const data=XLSX.utils.sheet_to_json(ws,{defval:''});
-        if(data.length && data[0].firstName!==undefined){rows=[...rows,...data];}
+    const r = new FileReader();
+    r.onload = e => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      let rows = [];
+      wb.SheetNames.forEach(sn => {
+        const data = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
+        if (data.length && (data[0].firstName !== undefined || data[0]['firstName'] !== undefined)) {
+          rows = [...rows, ...data];
+        }
       });
-      if(rows.length) processRows(rows);
-      else{alert('No student data found. Expected columns: firstName, lastName, Branch, Batch, Trainer, etc.');}
+      if (rows.length) processRows(rows);
+      else alert('No student data found. Expected columns: firstName, lastName, Branch, Batch, Trainer…');
     };
     r.readAsArrayBuffer(file);
   }
 }
 
-function parseCSV(text){
-  const lines=text.trim().split('\n');
-  const headers=lines[0].split(',').map(h=>h.trim().replace(/"/g,''));
-  return lines.slice(1).map(l=>{
-    const vals=l.split(',').map(v=>v.trim().replace(/"/g,''));
-    return Object.fromEntries(headers.map((h,i)=>[h,vals[i]||'']));
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  return lines.slice(1).map(l => {
+    const vals = l.split(',').map(v => v.trim().replace(/"/g, ''));
+    return Object.fromEntries(headers.map((h, i) => [h, vals[i] || '']));
   });
 }
 
-function normalize(row){
-  const find=(...keys)=>{for(const k of keys){const v=row[k]||row[k.toLowerCase()]||row[k.replace(' ','')];if(v)return String(v).trim();}return '';};
+function norm(row) {
+  const f = (...keys) => { for (const k of keys) { const v = row[k]; if (v !== undefined && v !== '') return String(v).trim(); } return ''; };
   return {
-    firstName: find('firstName','first_name','First Name','FIRSTNAME'),
-    lastName: find('lastName','last_name','Last Name','LASTNAME'),
-    email: find('email','Email','EMAIL'),
-    rollNo: find('rollNo','roll_no','Roll No','RollNo','ROLLNO'),
-    phone: find('phone','Phone','PHONE'),
-    gender: find('gender','Gender','GENDER'),
-    branch: find('Branch ','Branch','branch','BRANCH'),
-    batch: find('Batch','batch','BATCH'),
-    graduation: find('Graduation','graduation','GRADUATION'),
-    trainer: find('Trainer ','Trainer','trainer','TRAINER'),
+    firstName: f('firstName', 'first_name', 'First Name'),
+    lastName: f('lastName', 'last_name', 'Last Name'),
+    email: f('email', 'Email'),
+    rollNo: f('rollNo', 'roll_no', 'Roll No', 'RollNo'),
+    phone: f('phone', 'Phone'),
+    gender: f('gender', 'Gender'),
+    branch: f('Branch ', 'Branch', 'branch'),
+    batch: f('Batch', 'batch'),
+    graduation: f('Graduation', 'graduation'),
+    trainer: f('Trainer ', 'Trainer', 'trainer'),
   };
 }
 
-function processRows(rawRows){
-  const rows=rawRows.map(normalize).filter(r=>r.firstName||r.rollNo);
-  const collegeMap={};
-  rows.forEach(r=>{
-    const col=r.branch||'Unknown College';
-    const br=r.batch||'Unknown Batch';
-    const tr=r.trainer||'Unknown Trainer';
-    if(!collegeMap[col])collegeMap[col]={};
-    if(!collegeMap[col][br])collegeMap[col][br]={trainer:tr,students:[]};
-    collegeMap[col][br].students.push(r);
+function processRows(rawRows) {
+  const rows = rawRows.map(norm).filter(r => r.firstName || r.rollNo);
+  const colleges = {};
+  rows.forEach(r => {
+    const col = r.branch || 'Unknown Branch';
+    const bat = r.batch || 'Unknown Batch';
+    const tr = r.trainer || 'Unknown Trainer';
+    if (!colleges[col]) colleges[col] = {};
+    if (!colleges[col][bat]) colleges[col][bat] = { trainer: tr, students: [] };
+    colleges[col][bat].students.push(r);
   });
-  treeData={colleges:collegeMap,totalStudents:rows.length,rows};
+  treeData = { colleges, rows };
+  expandedNodes = new Set(['root']);
+  selectedId = null;
   renderAll();
 }
 
-function renderAll(){
-  if(!treeData)return;
-  document.getElementById('main-content').classList.remove('hidden');
-  document.getElementById('drop-zone').style.display='none';
+function renderAll() {
+  document.getElementById('upload-zone').style.display = 'none';
+  document.getElementById('stats-strip').classList.add('visible');
+  document.getElementById('search-wrap').classList.add('visible');
   renderStats();
-  renderTree(treeData.rows);
+  buildTree(null);
+  showWelcome();
 }
 
-const COLORS={college:'#185FA5',branch:'#0F6E56',batch:'#993C1D',trainer:'#3C3489',student:'#888780'};
-const BG={college:'#E6F1FB',branch:'#E1F5EE',batch:'#FAECE7',trainer:'#EEEDFE',student:'#F1EFE8'};
-
-function renderStats(){
-  const {colleges,totalStudents}=treeData;
-  const colCount=Object.keys(colleges).length;
-  const batchCount=Object.values(colleges).reduce((s,b)=>s+Object.keys(b).length,0);
-  const trainerSet=new Set();
-  Object.values(colleges).forEach(b=>Object.values(b).forEach(d=>trainerSet.add(d.trainer)));
-  document.getElementById('stats-row').innerHTML=`
-    <div class="stat-card"><div class="lbl">Branches</div><div class="val">${colCount}</div></div>
-    <div class="stat-card"><div class="lbl">Batches</div><div class="val">${batchCount}</div></div>
-    <div class="stat-card"><div class="lbl">Trainers</div><div class="val">${trainerSet.size}</div></div>
-    <div class="stat-card"><div class="lbl">Students</div><div class="val">${totalStudents}</div></div>
+/* ── Stats ── */
+function renderStats() {
+  const { colleges, rows } = treeData;
+  const batches = Object.values(colleges).reduce((s, b) => s + Object.keys(b).length, 0);
+  const trainers = new Set(Object.values(colleges).flatMap(b => Object.values(b).map(d => d.trainer))).size;
+  document.getElementById('stats-strip').innerHTML = `
+    <div class="stat-pill"><div class="sp-val">${Object.keys(colleges).length}</div><div class="sp-lbl">Branches</div></div>
+    <div class="stat-pill"><div class="sp-val">${batches}</div><div class="sp-lbl">Batches</div></div>
+    <div class="stat-pill"><div class="sp-val">${trainers}</div><div class="sp-lbl">Trainers</div></div>
+    <div class="stat-pill"><div class="sp-val">${rows.length}</div><div class="sp-lbl">Students</div></div>
   `;
 }
 
-function renderTree(filterRows){
-  const wrap=document.getElementById('tree-wrap');
-  if(!treeData){wrap.innerHTML='';return;}
-  const {colleges}=treeData;
-  const filterSet=filterRows?new Set(filterRows.map(r=>r.rollNo)):null;
+/* ── Tree rendering ── */
+const TYPE_COLORS = {
+  root:    { bg: '#eff4ff', stroke: '#2563eb', icon: '#2563eb' },
+  branch:  { bg: '#f0fdf4', stroke: '#16a34a', icon: '#16a34a' },
+  batch:   { bg: '#fffbeb', stroke: '#b45309', icon: '#b45309' },
+  trainer: { bg: '#f5f3ff', stroke: '#7c3aed', icon: '#7c3aed' },
+  student: { bg: '#f9fafb', stroke: '#6b7280', icon: '#6b7280' },
+};
 
-  let html='<div class="tree-node">';
-  const rootId='root';
-  const rootOpen=expandedNodes.has(rootId);
-  html+=nodeRow(rootId,'college','St. Joseph Institute','root',Object.keys(colleges).length+' branches','bold',rootOpen);
-  if(rootOpen){
-    html+='<div class="node-children">';
-    Object.entries(colleges).forEach(([col,batches])=>{
-      const colId='col:'+col;
-      const colOpen=expandedNodes.has(colId);
-      const batchCount=Object.keys(batches).length;
-      const visStudents=Object.values(batches).flatMap(b=>b.students).filter(s=>!filterSet||filterSet.has(s.rollNo));
-      if(filterSet&&visStudents.length===0)return;
-      html+=nodeRow(colId,'branch',col,'branch',batchCount+' batches','bold',colOpen);
-      if(colOpen){
-        html+='<div class="node-children">';
-        Object.entries(batches).forEach(([bat,info])=>{
-          const batId='bat:'+col+':'+bat;
-          const batOpen=expandedNodes.has(batId);
-          const visS=info.students.filter(s=>!filterSet||filterSet.has(s.rollNo));
-          if(filterSet&&visS.length===0)return;
-          html+=nodeRow(batId,'batch',bat,'batch',visS.length+' students','',batOpen);
-          if(batOpen){
-            html+='<div class="node-children">';
-            const trId='tr:'+col+':'+bat;
-            const trOpen=expandedNodes.has(trId);
-            html+=nodeRow(trId,'trainer',info.trainer,'trainer',visS.length+' students','',trOpen);
-            if(trOpen){
-              html+='<div class="node-children">';
-              visS.forEach(s=>{
-                const sId='stu:'+s.rollNo;
-                const name=(s.firstName+' '+s.lastName).trim()||s.rollNo;
-                html+=nodeRow(sId,'student',name,'student',s.rollNo,'',false,true);
-              });
-              html+='</div>';
-            }
-            html+='</div>';
-          }
-        });
-        html+='</div>';
-      }
-    });
-    html+='</div>';
-  }
-  html+='</div>';
-  wrap.innerHTML=html;
+const ICONS = {
+  root: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>`,
+  branch: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>`,
+  batch: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  trainer: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  student: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>`,
+};
+
+function buildTree(filterSet) {
+  if (!treeData) return;
+  const root = document.getElementById('tree-root');
+  root.innerHTML = renderNodeHTML('root', 'root', 'St. Joseph Institute', 0, filterSet);
 }
 
-function nodeRow(id,type,label,typeTag,badge,labelClass,isOpen,isLeaf){
-  const dot=`<span class="node-dot" style="background:${COLORS[type]}"></span>`;
-  const tog=isLeaf?`<span class="node-toggle leaf">▶</span>`:`<span class="node-toggle${isOpen?' open':''}">▶</span>`;
-  const bdg=badge?`<span class="node-badge" style="background:${BG[type]};color:${COLORS[type]}">${badge}</span>`:'';
-  const sel=selectedNode===id?' selected':'';
-  return `<div class="node-row${sel}" onclick="nodeClick('${id}','${type}','${label.replace(/'/g,"\\'")}','${typeTag}')">
-    ${tog}${dot}
-    <span class="node-label${labelClass?' '+labelClass:''}" title="${label.replace(/"/g,'&quot;')}">${esc(label)}</span>
-    ${bdg}
+function renderNodeHTML(id, type, label, depth, filterSet) {
+  const isOpen = expandedNodes.has(id);
+  const isActive = selectedId === id;
+  const c = TYPE_COLORS[type];
+  const indent = depth * 20;
+
+  let children = '';
+  let count = '';
+  let isLeaf = false;
+
+  if (type === 'root') {
+    const cols = Object.keys(treeData.colleges);
+    count = cols.length + ' branches';
+    if (isOpen) {
+      children = cols.map(col => {
+        const batches = treeData.colleges[col];
+        const allStu = Object.values(batches).flatMap(b => b.students);
+        if (filterSet && !allStu.some(s => filterSet.has(s.rollNo))) return '';
+        return renderNodeHTML('col:' + col, 'branch', col, depth + 1, filterSet);
+      }).join('');
+    }
+  } else if (type === 'branch') {
+    const col = id.slice(4);
+    const batches = treeData.colleges[col];
+    count = Object.keys(batches).length + ' batches';
+    if (isOpen) {
+      children = Object.entries(batches).map(([bat, info]) => {
+        if (filterSet && !info.students.some(s => filterSet.has(s.rollNo))) return '';
+        return renderNodeHTML('bat:' + col + ':' + bat, 'batch', bat, depth + 1, filterSet);
+      }).join('');
+    }
+  } else if (type === 'batch') {
+    const parts = id.split(':'); const col = parts[1], bat = parts[2];
+    const info = treeData.colleges[col][bat];
+    const vis = filterSet ? info.students.filter(s => filterSet.has(s.rollNo)) : info.students;
+    count = vis.length + ' students';
+    if (isOpen) {
+      const trId = 'tr:' + col + ':' + bat;
+      children = renderNodeHTML(trId, 'trainer', info.trainer, depth + 1, filterSet);
+    }
+  } else if (type === 'trainer') {
+    const parts = id.split(':'); const col = parts[1], bat = parts[2];
+    const info = treeData.colleges[col][bat];
+    const vis = filterSet ? info.students.filter(s => filterSet.has(s.rollNo)) : info.students;
+    count = vis.length + ' students';
+    if (isOpen) {
+      children = vis.map(s => {
+        const sId = 'stu:' + s.rollNo;
+        const name = (s.firstName + ' ' + s.lastName).trim() || s.rollNo;
+        return renderNodeHTML(sId, 'student', name, depth + 1, filterSet);
+      }).join('');
+    }
+  } else if (type === 'student') {
+    isLeaf = true;
+  }
+
+  const toggleClass = isLeaf ? 'leaf' : (isOpen ? 'open' : '');
+
+  return `<div class="tree-node">
+    <div class="node-row${isActive ? ' active' : ''}" onclick="nodeClick(event,'${id}','${type}')" style="padding-left:${8 + indent}px">
+      <div class="toggle-btn ${toggleClass}">
+        ${isLeaf ? '' : `<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2l4 3-4 3" stroke="${isActive ? '#2563eb' : '#9e9890'}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
+      </div>
+      <div class="node-icon" style="background:${c.bg}; color:${c.icon}">${ICONS[type]}</div>
+      <span class="node-label ${depth === 0 ? 'fw' : depth === 1 ? 'med' : ''}" title="${esc(label)}">${esc(label)}</span>
+      ${count ? `<span class="node-count">${count}</span>` : ''}
+    </div>
+    ${children ? `<div class="node-children">${children}</div>` : ''}
   </div>`;
 }
 
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-function nodeClick(id,type,label,typeTag){
-  if(type==='student'){selectedNode=id;showStudentDetail(id,label);}
-  else{
-    if(expandedNodes.has(id))expandedNodes.delete(id);
+function nodeClick(e, id, type) {
+  e.stopPropagation();
+  if (type !== 'student') {
+    if (expandedNodes.has(id)) expandedNodes.delete(id);
     else expandedNodes.add(id);
-    selectedNode=id;
-    renderTree(null);
-    if(type!=='student')showGroupDetail(id,type,label);
+  }
+  selectedId = id;
+  buildTree(null);
+  showDetail(id, type);
+}
+
+/* ── Detail panel ── */
+function showWelcome() {
+  document.getElementById('welcome').style.display = 'flex';
+  document.getElementById('detail-content').style.display = 'none';
+}
+
+function showDetail(id, type) {
+  document.getElementById('welcome').style.display = 'none';
+  const dc = document.getElementById('detail-content');
+  dc.style.display = 'flex';
+  dc.style.flexDirection = 'column';
+  dc.style.gap = '16px';
+  dc.className = 'fade-in';
+  dc.innerHTML = '';
+
+  if (type === 'student') {
+    const rollNo = id.slice(4);
+    const s = treeData.rows.find(r => r.rollNo === rollNo);
+    if (!s) return;
+    renderStudentDetail(dc, s);
+  } else if (type === 'root') {
+    renderGroupDetail(dc, 'St. Joseph Institute', treeData.rows, 'root');
+  } else if (type === 'branch') {
+    const col = id.slice(4);
+    const students = Object.values(treeData.colleges[col]).flatMap(b => b.students);
+    renderGroupDetail(dc, col, students, 'branch');
+  } else if (type === 'batch') {
+    const parts = id.split(':'); const col = parts[1], bat = parts[2];
+    const info = treeData.colleges[col][bat];
+    renderBatchDetail(dc, bat, info);
+  } else if (type === 'trainer') {
+    const parts = id.split(':'); const col = parts[1], bat = parts[2];
+    const info = treeData.colleges[col][bat];
+    renderTrainerDetail(dc, info.trainer, info.students, bat);
   }
 }
 
-function showStudentDetail(id,label){
-  const rollNo=id.replace('stu:','');
-  const s=treeData.rows.find(r=>r.rollNo===rollNo);
-  if(!s)return;
-  const name=(s.firstName+' '+s.lastName).trim();
-  const gTag=s.gender.toLowerCase()==='female'?'tag-female':s.gender.toLowerCase()==='male'?'tag-male':'tag-neutral';
-  const panel=document.getElementById('detail-panel');
-  panel.classList.remove('hidden');
-  panel.innerHTML=`
-    <h3><i class="ti ti-user" aria-hidden="true" style="font-size:15px;margin-right:6px;vertical-align:-2px"></i>${esc(name)}</h3>
-    <div class="detail-grid">
-      <div class="detail-item"><div class="dk">Roll no</div><div class="dv">${esc(s.rollNo)}</div></div>
-      <div class="detail-item"><div class="dk">Gender</div><div class="dv"><span class="node-badge ${gTag}">${esc(s.gender)}</span></div></div>
-      <div class="detail-item"><div class="dk">Email</div><div class="dv">${esc(s.email||'—')}</div></div>
-      <div class="detail-item"><div class="dk">Phone</div><div class="dv">${esc(s.phone||'—')}</div></div>
-      <div class="detail-item"><div class="dk">Branch</div><div class="dv">${esc(s.branch)}</div></div>
-      <div class="detail-item"><div class="dk">Batch</div><div class="dv">${esc(s.batch)}</div></div>
-      <div class="detail-item"><div class="dk">Trainer</div><div class="dv">${esc(s.trainer)}</div></div>
-      <div class="detail-item"><div class="dk">Graduation</div><div class="dv">${esc(s.graduation)}</div></div>
+function initials(s) {
+  return ((s.firstName || '?')[0] + (s.lastName || '?')[0]).toUpperCase();
+}
+
+function genderClass(g) {
+  const l = (g || '').toLowerCase();
+  return l === 'female' ? 'female' : l === 'male' ? 'male' : 'other';
+}
+
+function renderStudentDetail(dc, s) {
+  const name = (s.firstName + ' ' + s.lastName).trim();
+  const gc = genderClass(s.gender);
+  dc.innerHTML = `
+    <div class="d-card">
+      <div class="student-header">
+        <div class="avatar ${gc}">${initials(s)}</div>
+        <div>
+          <div class="student-name">${esc(name)}</div>
+          <div class="student-roll">${esc(s.rollNo)}</div>
+        </div>
+        <span class="badge badge-${gc === 'female' ? 'female' : 'male'}" style="margin-left:auto">${esc(s.gender || '—')}</span>
+      </div>
+      <div class="info-grid">
+        <div class="info-item"><div class="ik">Email</div><div class="iv">${esc(s.email || '—')}</div></div>
+        <div class="info-item"><div class="ik">Phone</div><div class="iv">${esc(s.phone || '—')}</div></div>
+        <div class="info-item"><div class="ik">Branch</div><div class="iv"><span class="badge badge-green">${esc(s.branch)}</span></div></div>
+        <div class="info-item"><div class="ik">Batch</div><div class="iv"><span class="badge badge-purple">${esc(s.batch)}</span></div></div>
+        <div class="info-item"><div class="ik">Trainer</div><div class="iv">${esc(s.trainer || '—')}</div></div>
+        <div class="info-item"><div class="ik">Graduation</div><div class="iv">${esc(s.graduation || '—')}</div></div>
+      </div>
+    </div>`;
+}
+
+function renderGroupDetail(dc, label, students, type) {
+  const male = students.filter(s => s.gender?.toLowerCase() === 'male').length;
+  const female = students.filter(s => s.gender?.toLowerCase() === 'female').length;
+  const trainers = new Set(students.map(s => s.trainer)).size;
+  const c = TYPE_COLORS[type];
+  dc.innerHTML = `
+    <div class="d-card">
+      <div class="d-card-title">
+        <div class="icon-box" style="background:${c.bg};color:${c.icon}">${ICONS[type]}</div>
+        ${esc(label)}
+      </div>
+      <div class="group-meta">
+        <div class="gm-item"><div class="gm-val">${students.length}</div><div class="gm-lbl">Students</div></div>
+        <div class="gm-item"><div class="gm-val">${trainers}</div><div class="gm-lbl">Trainers</div></div>
+        <div class="gm-item"><div class="gm-val">${male}</div><div class="gm-lbl">Male</div></div>
+        <div class="gm-item"><div class="gm-val">${female}</div><div class="gm-lbl">Female</div></div>
+      </div>
     </div>
-  `;
+    ${studentTable(students)}`;
 }
 
-function showGroupDetail(id,type,label){
-  let students=[];
-  const {colleges}=treeData;
-  if(type==='branch'){
-    Object.values(colleges).forEach(bs=>Object.values(bs).forEach(b=>students=[...students,...b.students]));
-  } else if(id.startsWith('bat:')){
-    const [,col,bat]=id.split(':');
-    students=colleges[col]?.[bat]?.students||[];
-  } else if(id.startsWith('tr:')){
-    const parts=id.split(':');const col=parts[1],bat=parts[2];
-    students=colleges[col]?.[bat]?.students||[];
-  } else if(id==='root'){
-    students=treeData.rows;
+function renderBatchDetail(dc, bat, info) {
+  const c = TYPE_COLORS.batch;
+  const male = info.students.filter(s => s.gender?.toLowerCase() === 'male').length;
+  const female = info.students.filter(s => s.gender?.toLowerCase() === 'female').length;
+  dc.innerHTML = `
+    <div class="d-card">
+      <div class="d-card-title">
+        <div class="icon-box" style="background:${c.bg};color:${c.icon}">${ICONS.batch}</div>
+        ${esc(bat)}
+      </div>
+      <div class="group-meta">
+        <div class="gm-item"><div class="gm-val">${info.students.length}</div><div class="gm-lbl">Students</div></div>
+        <div class="gm-item"><div class="gm-val">${male}</div><div class="gm-lbl">Male</div></div>
+        <div class="gm-item"><div class="gm-val">${female}</div><div class="gm-lbl">Female</div></div>
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="ik" style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Trainer</div>
+        <div style="font-weight:500;font-size:14px">${esc(info.trainer)}</div>
+      </div>
+    </div>
+    ${studentTable(info.students)}`;
+}
+
+function renderTrainerDetail(dc, trainer, students, bat) {
+  const c = TYPE_COLORS.trainer;
+  dc.innerHTML = `
+    <div class="d-card">
+      <div class="d-card-title">
+        <div class="icon-box" style="background:${c.bg};color:${c.icon}">${ICONS.trainer}</div>
+        ${esc(trainer)}
+      </div>
+      <div class="group-meta">
+        <div class="gm-item"><div class="gm-val">${students.length}</div><div class="gm-lbl">Students</div></div>
+        <div class="gm-item"><div class="gm-val">1</div><div class="gm-lbl">Batch</div></div>
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="ik" style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px">Batch</div>
+        <span class="badge badge-purple">${esc(bat)}</span>
+      </div>
+    </div>
+    ${studentTable(students)}`;
+}
+
+function studentTable(students) {
+  const shown = students.slice(0, 100);
+  const rows = shown.map(s => {
+    const name = (s.firstName + ' ' + s.lastName).trim();
+    const gc = genderClass(s.gender);
+    const dotColor = gc === 'male' ? '#2563eb' : gc === 'female' ? '#9d174d' : '#6b7280';
+    return `<tr class="clickable-row" onclick="selectStudent('${esc(s.rollNo)}')">
+      <td><span class="gender-dot" style="background:${dotColor}"></span>${esc(name)}</td>
+      <td style="color:var(--text2)">${esc(s.rollNo)}</td>
+      <td>${esc(s.batch)}</td>
+      <td style="color:var(--text2)">${esc(s.trainer)}</td>
+    </tr>`;
+  }).join('');
+  const more = students.length > 100 ? `<div class="more-note">Showing 100 of ${students.length} students</div>` : '';
+  return `<div class="d-card" style="padding:0;overflow:hidden">
+    <div class="student-table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Roll no</th><th>Batch</th><th>Trainer</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${more}
+  </div>`;
+}
+
+function selectStudent(rollNo) {
+  const id = 'stu:' + rollNo;
+  selectedId = id;
+  buildTree(null);
+  const s = treeData.rows.find(r => r.rollNo === rollNo);
+  if (s) {
+    document.getElementById('welcome').style.display = 'none';
+    const dc = document.getElementById('detail-content');
+    dc.style.display = 'flex';
+    dc.style.flexDirection = 'column';
+    dc.style.gap = '16px';
+    dc.innerHTML = '';
+    renderStudentDetail(dc, s);
   }
-  if(!students.length)return;
-  const panel=document.getElementById('detail-panel');
-  panel.classList.remove('hidden');
-  const rows=students.slice(0,50).map(s=>`<tr>
-    <td>${esc((s.firstName+' '+s.lastName).trim())}</td>
-    <td>${esc(s.rollNo)}</td>
-    <td>${esc(s.batch)}</td>
-    <td>${esc(s.trainer)}</td>
-  </tr>`).join('');
-  panel.innerHTML=`
-    <h3>${esc(label)} <span style="font-size:12px;font-weight:400;color:var(--color-text-secondary)">${students.length} students${students.length>50?' (showing 50)':''}</span></h3>
-    <table class="student-table">
-      <thead><tr><th>Name</th><th>Roll no</th><th>Batch</th><th>Trainer</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
 }
 
-function filterTree(q){
-  if(!treeData)return;
-  if(!q.trim()){renderTree(null);return;}
-  const lq=q.toLowerCase();
-  const matched=treeData.rows.filter(r=>{
-    const name=(r.firstName+' '+r.lastName).toLowerCase();
-    return name.includes(lq)||r.rollNo.toLowerCase().includes(lq)||r.trainer.toLowerCase().includes(lq)||r.batch.toLowerCase().includes(lq)||r.branch.toLowerCase().includes(lq)||r.email.toLowerCase().includes(lq);
+/* ── Search ── */
+function filterTree(q) {
+  if (!treeData) return;
+  if (!q.trim()) { buildTree(null); return; }
+  const lq = q.toLowerCase();
+  const matched = treeData.rows.filter(r => {
+    const name = (r.firstName + ' ' + r.lastName).toLowerCase();
+    return name.includes(lq) || r.rollNo.toLowerCase().includes(lq)
+      || r.trainer.toLowerCase().includes(lq) || r.batch.toLowerCase().includes(lq)
+      || r.branch.toLowerCase().includes(lq);
   });
-  expandedNodes=new Set(['root',...matched.map(r=>'col:'+r.branch),...matched.map(r=>'bat:'+r.branch+':'+r.batch),...matched.map(r=>'tr:'+r.branch+':'+r.batch)]);
-  renderTree(matched);
+  const filterSet = new Set(matched.map(r => r.rollNo));
+  expandedNodes = new Set([
+    'root',
+    ...matched.map(r => 'col:' + r.branch),
+    ...matched.map(r => 'bat:' + r.branch + ':' + r.batch),
+    ...matched.map(r => 'tr:' + r.branch + ':' + r.batch),
+  ]);
+  buildTree(filterSet);
 }
 
-expandedNodes.add('root');
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 </script>
+</body>
+</html>
